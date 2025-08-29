@@ -1,0 +1,195 @@
+# Global defaults applied to all services unless overridden below
+global:
+  serviceAccountName: ""
+  repoName: public.ecr.aws
+  clusterDomain: cluster.local
+  image:
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  ports:
+    - protocol: TCP
+      containerPort: 80
+      name: http
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+  env: []
+  args: {}
+  podAnnotations: {}
+  podSecurityContext: {}
+  livenessProbe: {}
+  readinessProbe: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  service:
+    enabled: true
+    type: ClusterIP
+    ports:
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  ingress:
+    enabled: false
+    host: ""
+    annotations: {}
+    path: "/"
+  cronjobs:
+    enabled: false
+    jobs: []
+  configmap:
+    enabled: false
+    mountPath: ""
+    filename: ""
+    data: ""
+
+# Shared environment variables grouped by name; referenced by services via group
+environmentVariables:
+  backend:
+    - name: DEBUG
+      value: "1"
+    - name: KAFKA_HOST
+      value: kafka.svc.cluster.local:9092
+    - name: PYTHONUNBUFFERED
+      value: "1"
+    - name: DB_USER
+      value: admin
+    - name: AWS_REGION
+      value: us-east-1
+  frontend:
+    - name: APP_ENV
+      value: "development"
+    - name: APP_BASE_URL
+      value: "app.example.com"
+    - name: APP_API_URL
+      value: "app.example.com/api"
+    - name: APP_DEBUG_MODE
+      value: "true"
+    - name: APP_DEFAULT_LANGUAGE
+      value: "en"
+
+# Default configuration applied to all services
+
+# Service-specific configurations (only overrides from global)
+services:
+  ui:
+    group: frontend
+    image:
+      name: "nginx"
+      tag: "vb.78"
+      pullPolicy: Always
+    ports:
+      - protocol: TCP
+        containerPort: 80
+        name: http
+    env:
+      - name: APP_PORT
+        value: "80"
+    service:
+      ports:
+        port: 3001
+        protocol: TCP
+        targetPort: 80
+    ingress:
+      enabled: true
+      host: "app.example.com"
+      annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: HTTP
+        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+        nginx.ingress.kubernetes.io/proxy-body-size: 1024m
+      path: "/"
+    configmap:
+      enabled: true
+      mountPath: /opt/bin/path/browser/config/env.json
+      filename: env.json
+      data: |-
+        {"env":"development"}
+
+  apigateway:
+    group: backend
+    image:
+      repo: quay.io
+      name: gateway-that-works
+      tag: v0.0.1
+    ports:
+      - protocol: TCP
+        containerPort: 4041
+        name: http
+    resources:
+      requests:
+        cpu: 1024m
+        memory: 2Gi
+      limits:
+        cpu: 2048m
+        memory: 4Gi
+    autoscaling:
+      enabled: false
+    env:
+      - name: CORS_ORIGIN_WHITELIST
+        value: "https://analytics.example.com, http://localhost:4200"
+    nodeSelector:
+      nodegroup: gateway
+    service:
+      ports:
+        port: 5001
+        protocol: TCP
+        targetPort: 80
+    ingress:
+      enabled: true
+      host: "gateway.app.example.com"
+      annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: HTTP
+        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+        nginx.ingress.kubernetes.io/proxy-body-size: 1024m
+      path: "/"
+
+  api:
+    group: backend
+    service:
+      ports:
+        port: 5006
+        protocol: TCP
+        targetPort: 80
+
+  auth:
+    group: backend
+    serviceAccountName: auth-sa
+    service:
+      ports:
+        port: 5002
+        protocol: TCP
+        targetPort: 80
+
+  blogs:
+    group: frontend
+    service:
+      ports:
+        port: 5005
+        protocol: TCP
+        targetPort: 80
+    cronjobs:
+      enabled: true
+      jobs:
+        - name: job-a
+          command: ["python", "./script-a.py"]
+          schedule: '5 * * * *'
+        - name: job-b
+          command: ["python", "./script-b.py"]
+          schedule: '5 2 1 * *'
+
+# Dependencies configuration
+dependency:
+  vader:
+    enabled: false

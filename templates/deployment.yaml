@@ -1,0 +1,107 @@
+{{/*
+Deployment template
+- Iterates over all services defined under .Values.services
+- Merges per-service overrides onto the global defaults (no mutation via deepCopy)
+- Builds image via the imageRef helper (supports repository or repo+name)
+- Emits env only when service-specific or shared group env exists
+- Optionally mounts a ConfigMap file when enabled
+*/}}
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- $mergedConfig := merge (deepCopy $.Values.global) $serviceConfig }}
+{{- $serviceGroup := $serviceConfig.group }}
+{{- $cm := ($serviceConfig.configmap | default dict) }}
+{{- $cmEnabled := (default $.Values.global.configmap.enabled $cm.enabled) }}
+{{- $img := ($serviceConfig.image | default dict) }}
+{{- $imgRepo := (default $.Values.global.image.repository $img.repository) }}
+{{- $imgTag := (default $.Values.global.image.tag $img.tag) }}
+{{- $imgPullPolicy := (default $.Values.global.image.pullPolicy $img.pullPolicy) }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helm-template.deploymentMetaNameBase" $serviceName }}
+  labels:
+    app: '{{ $serviceName }}'
+  {{- include "helm-template.labels" $ | nindent 4 }}
+spec:
+  revisionHistoryLimit: 5
+  replicas: {{ $mergedConfig.replicaCount }}
+  selector:
+    matchLabels:
+      app: '{{ $serviceName }}'
+    {{- include "helm-template.selectorLabels" $ | nindent 6 }}
+  strategy:
+    {{- toYaml $mergedConfig.strategy | nindent 4 }}
+  template:
+    metadata:
+      {{- with $mergedConfig.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: '{{ $serviceName }}'
+      {{- include "helm-template.selectorLabels" $ | nindent 8 }}
+    spec:
+      {{- if $cmEnabled }}
+      volumes:
+        - name: "{{ include "helm-template.configmapMetaNameBase" $serviceName }}-{{ $serviceName }}-vol"
+          configMap:
+            name: "{{ include "helm-template.configmapMetaNameBase" $serviceName }}-{{ $serviceName }}"
+            items:
+            - key: {{ $mergedConfig.configmap.filename }}
+              path: {{ $mergedConfig.configmap.filename }}
+      {{- end }}
+      {{- with $mergedConfig.imagePullSecret }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "helm-template.serviceAccountName" (dict "serviceConfig" $mergedConfig "Values" $.Values) }}
+      containers:
+        - name: "{{ $serviceName }}-container"
+          image: {{ include "helm-template.imageRef" (dict "serviceName" $serviceName "serviceConfig" $serviceConfig "Values" $.Values "Chart" $.Chart) }}
+          imagePullPolicy: {{ $imgPullPolicy }}
+          {{- if $cmEnabled }}
+          volumeMounts:
+            - name: "{{ include "helm-template.configmapMetaNameBase" $serviceName }}-{{ $serviceName }}-vol"
+              mountPath: "{{ $mergedConfig.configmap.mountPath }}"
+              subPath: {{ $mergedConfig.configmap.filename }}
+          {{- end }}
+          {{- with $mergedConfig.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $mergedConfig.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- $serviceEnv := $mergedConfig.env }}
+          {{- $sharedEnv := (include "helm-template.sharedEnvironmentVariables" (dict "group" $serviceGroup "Values" $.Values)) }}
+          {{- if or $serviceEnv $sharedEnv }}
+          env:
+          {{- if $serviceEnv }}
+{{ toYaml $serviceEnv | nindent 12 | trimPrefix "\n" | trimSuffix "\n" }}
+          {{- end }}
+          {{- if $sharedEnv }}{{- $sharedEnv | trim | nindent 12 }}{{- end }}
+          {{- end }}
+          ports:
+            {{- range $port := $mergedConfig.ports }}
+            - containerPort: {{ $port.containerPort }}
+              name: {{ $port.name }}
+              protocol: {{ $port.protocol }}
+            {{- end }}
+          resources:
+            {{- toYaml $mergedConfig.resources | nindent 12 }}
+      {{- with $mergedConfig.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $mergedConfig.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $mergedConfig.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+{{- end }}

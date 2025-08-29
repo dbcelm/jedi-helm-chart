@@ -1,0 +1,22 @@
+apiVersion: v2
+appVersion: "1.0.0"
+#kubeVersion: '>=1.31.0-0'
+
+name: jedi-helm
+description: One helm chart to manage multiple micro-services
+
+# dependencies:
+# - name: vader
+#   repository: https://charts.vader.io  # [to be used when using external helm chart]
+#   repository: "file://dependency-charts/vader/" # [to be used when using local helm chart]
+#   version: 0.0.1
+#   condition: dependency.vader.enabled
+
+maintainers:
+- email: dbcelm@gmail.com
+  name: Ayush Tiwari
+  url: dbcelm.github.io
+
+icon: https://raw.githubusercontent.com/kubernetes/kubernetes/master/logo/logo.svg
+type: application
+version: 1.0.0

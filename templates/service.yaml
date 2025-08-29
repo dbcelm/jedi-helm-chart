@@ -1,0 +1,34 @@
+{{/*
+Service template
+- Creates a Service per service entry when service.enabled resolves true
+- Uses explicit fallbacks for type and ports from global.service.*
+*/}}
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- $mergedConfig := merge (deepCopy $.Values.global) $serviceConfig }}
+{{- $svc := ($serviceConfig.service | default dict) }}
+{{- $svcPorts := ($svc.ports | default dict) }}
+{{- $svcEnabled := (default $.Values.global.service.enabled $svc.enabled) }}
+{{- $svcType := (default $.Values.global.service.type $svc.type) }}
+{{- $svcPort := (default $.Values.global.service.ports.port $svcPorts.port) }}
+{{- $svcProtocol := (default $.Values.global.service.ports.protocol $svcPorts.protocol) }}
+{{- $svcTargetPort := (default $.Values.global.service.ports.targetPort $svcPorts.targetPort) }}
+{{- if $svcEnabled }}
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "helm-template.serviceMetaNameBase" $serviceName }}
+  labels:
+    {{- include "helm-template.labels" $ | nindent 4 }}
+spec:
+  type: {{ $svcType }}
+  selector:
+    app: {{ $serviceName }}
+    {{- include "helm-template.selectorLabels" $ | nindent 4 }}
+  ports:
+    - port: {{ $svcPort }}
+      protocol: {{ $svcProtocol }}
+      targetPort: {{ $svcTargetPort }}
+---
+{{- end }}
+{{- end }}

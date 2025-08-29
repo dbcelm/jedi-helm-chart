@@ -1,0 +1,367 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/jedi-helm/values.schema.json",
+  "type": "object",
+  "properties": {
+    "global": {
+      "type": "object",
+      "properties": {
+        "serviceAccountName": {
+          "type": "string",
+          "oneOf": [
+            { "const": "" },
+            { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 }
+          ]
+        },
+        "repoName": { "type": "string" },
+        "clusterDomain": { "type": "string" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repo": { "type": "string" },
+            "name": { "type": "string" },
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          },
+          "additionalProperties": true
+        },
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+            "rollingUpdate": {
+              "type": "object",
+              "properties": {
+                "maxSurge": { "type": "string", "pattern": "^([0-9]+|[0-9]+%)$" },
+                "maxUnavailable": { "type": "string", "pattern": "^([0-9]+|[0-9]+%)$" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] },
+              "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 15 }
+            },
+            "required": ["containerPort"],
+            "additionalProperties": false
+          }
+        },
+        "resources": { "type": "object" },
+        "autoscaling": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minReplicas": { "type": "integer", "minimum": 1 },
+            "maxReplicas": { "type": "integer", "minimum": 1 },
+            "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+          },
+          "additionalProperties": true
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" },
+              "value": { "type": "string" }
+            },
+            "required": ["name", "value"],
+            "additionalProperties": false
+          }
+        },
+        "args": { "type": "object" },
+        "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "podSecurityContext": { "type": "object" },
+        "livenessProbe": { "type": "object" },
+        "readinessProbe": { "type": "object" },
+        "nodeSelector": { "type": "object", "additionalProperties": { "type": "string" } },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "service": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+            "ports": {
+              "type": "object",
+              "properties": {
+                "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] },
+                "targetPort": {
+                  "oneOf": [
+                    { "type": "integer", "minimum": 1, "maximum": 65535 },
+                    { "type": "string" }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "host": {
+              "type": "string",
+              "oneOf": [
+                { "const": "" },
+                { "type": "string", "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?\\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }
+              ]
+            },
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "path": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^/.*" } ] }
+          },
+          "additionalProperties": true,
+          "allOf": [
+            {
+              "if": { "properties": { "enabled": { "const": true } } },
+              "then": { "required": ["host", "path"] }
+            }
+          ]
+        },
+        "cronjobs": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "jobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 30 },
+                  "schedule": {
+                    "type": "string",
+                    "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot)|((\\*|[0-5]?\\d)\\s+(\\*|1?\\d|2[0-3])\\s+(\\*|[1-2]?\\d|3[0-1])\\s+(\\*|1?\\d|2?\\d|3[0-1])\\s+(\\*|[0-7])))$"
+                  },
+                  "command": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+                },
+                "required": ["name", "schedule", "command"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": true,
+          "allOf": [
+            {
+              "if": { "properties": { "enabled": { "const": true } } },
+              "then": { "required": ["jobs"], "properties": { "jobs": { "minItems": 1 } } }
+            }
+          ]
+        },
+        "configmap": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "filename": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^[^/]+$" } ] },
+            "mountPath": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^/.*" } ] },
+            "data": { "type": "string" }
+          },
+          "additionalProperties": true,
+          "allOf": [
+            {
+              "if": { "properties": { "enabled": { "const": true } } },
+              "then": { "required": ["filename", "mountPath", "data"] }
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "environmentVariables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" },
+            "value": { "type": "string" }
+          },
+          "required": ["name", "value"],
+          "additionalProperties": false
+        }
+      }
+    },
+
+    "services": {
+      "type": "object",
+      "description": "Service configurations keyed by service id (lowercase a-z, max 12 chars)",
+      "patternProperties": {
+        "^[a-z]{1,12}$": {
+          "type": "object",
+          "properties": {
+            "group": { "type": "string" },
+            "serviceAccountName": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 } ] },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repo": { "type": "string" },
+                "name": { "type": "string" },
+                "repository": { "type": "string" },
+                "tag": { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              },
+              "allOf": [
+                { "not": { "required": ["repository", "repo"] } },
+                { "if": { "required": ["repo"] }, "then": { "required": ["name"] } }
+              ],
+              "additionalProperties": true
+            },
+            "replicaCount": { "type": "integer", "minimum": 1 },
+            "strategy": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+                "rollingUpdate": {
+                  "type": "object",
+                  "properties": {
+                    "maxSurge": { "type": "string", "pattern": "^([0-9]+|[0-9]+%)$" },
+                    "maxUnavailable": { "type": "string", "pattern": "^([0-9]+|[0-9]+%)$" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "ports": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] },
+                  "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 15 }
+                },
+                "required": ["containerPort"],
+                "additionalProperties": false
+              }
+            },
+            "resources": { "type": "object" },
+            "autoscaling": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "minReplicas": { "type": "integer", "minimum": 1 },
+                "maxReplicas": { "type": "integer", "minimum": 1 },
+                "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+                "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+              },
+              "additionalProperties": true
+            },
+            "env": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" },
+                  "value": { "type": "string" }
+                },
+                "required": ["name", "value"],
+                "additionalProperties": false
+              }
+            },
+            "args": { "type": "object" },
+            "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+            "podSecurityContext": { "type": "object" },
+            "livenessProbe": { "type": "object" },
+            "readinessProbe": { "type": "object" },
+            "nodeSelector": { "type": "object", "additionalProperties": { "type": "string" } },
+            "tolerations": { "type": "array" },
+            "affinity": { "type": "object" },
+            "service": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+                "ports": {
+                  "type": "object",
+                  "properties": {
+                    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                    "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] },
+                    "targetPort": {
+                      "oneOf": [
+                        { "type": "integer", "minimum": 1, "maximum": 65535 },
+                        { "type": "string" }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "ingress": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "host": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?\\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$" } ] },
+                "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+                "path": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^/.*" } ] }
+              },
+              "additionalProperties": true,
+              "allOf": [
+                { "if": { "properties": { "enabled": { "const": true } } }, "then": { "required": ["host", "path"] } }
+              ]
+            },
+            "cronjobs": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "jobs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 30 },
+                      "schedule": {
+                        "type": "string",
+                        "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot)|((\\*|[0-5]?\\d)\\s+(\\*|1?\\d|2[0-3])\\s+(\\*|[1-2]?\\d|3[0-1])\\s+(\\*|1?\\d|2?\\d|3[0-1])\\s+(\\*|[0-7])))$"
+                      },
+                      "command": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+                    },
+                    "required": ["name", "schedule", "command"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": true,
+              "allOf": [
+                { "if": { "properties": { "enabled": { "const": true } } }, "then": { "required": ["jobs"], "properties": { "jobs": { "minItems": 1 } } } }
+              ]
+            },
+            "configmap": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "filename": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^[^/]+$" } ] },
+                "mountPath": { "type": "string", "oneOf": [ { "const": "" }, { "type": "string", "pattern": "^/.*" } ] },
+                "data": { "type": "string" }
+              },
+              "additionalProperties": true,
+              "allOf": [
+                { "if": { "properties": { "enabled": { "const": true } } }, "then": { "required": ["filename", "mountPath", "data"] } }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}
+

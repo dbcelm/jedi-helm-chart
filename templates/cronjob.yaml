@@ -1,0 +1,33 @@
+{{/*
+CronJob template
+- For services with cronjobs.enabled, emits a CronJob resource per job
+- Uses imageRef helper for image and trims/indents command for clean YAML
+*/}}
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- $mergedConfig := merge (deepCopy $.Values.global) $serviceConfig }}
+{{- if $mergedConfig.cronjobs.enabled }}
+{{- range $cron := $mergedConfig.cronjobs.jobs }}
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "helm-template.cronjobMetaNameBase" $serviceName }}-{{ $cron.name }}
+  labels:
+    app: '{{ $serviceName }}'
+  {{- include "helm-template.labels" $ | nindent 4 }}
+spec:
+  schedule: {{ $cron.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: "cronjob-{{ $cron.name }}"
+              image: {{ include "helm-template.imageRef" (dict "serviceName" $serviceName "serviceConfig" $serviceConfig "Values" $.Values "Chart" $.Chart) }}
+              command:
+{{ toYaml $cron.command | trim | indent 16 }}
+          restartPolicy: Never
+---
+{{- end }}
+{{- end }}
+{{- end }}

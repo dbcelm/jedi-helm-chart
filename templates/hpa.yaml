@@ -1,0 +1,52 @@
+{{/*
+HPA template
+- Creates an HPA per service when autoscaling.enabled resolves true
+- Targets the corresponding Deployment name
+*/}}
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- $mergedConfig := merge (deepCopy $.Values.global) $serviceConfig }}
+{{- $as := ($serviceConfig.autoscaling | default dict) }}
+{{- $asEnabled := (default $.Values.global.autoscaling.enabled $as.enabled) }}
+{{- $asMin := (default $.Values.global.autoscaling.minReplicas $as.minReplicas) }}
+{{- $asMax := (default $.Values.global.autoscaling.maxReplicas $as.maxReplicas) }}
+{{- $asCpu := (default $.Values.global.autoscaling.targetCPUUtilizationPercentage $as.targetCPUUtilizationPercentage) }}
+{{- $asMem := (default $.Values.global.autoscaling.targetMemoryUtilizationPercentage $as.targetMemoryUtilizationPercentage) }}
+{{- if $asEnabled }}
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "helm-template.hpaMetaNameBase" $serviceName }}
+  labels:
+    app: '{{ $serviceName }}'
+  {{- include "helm-template.labels" $ | nindent 4 }}
+spec:
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 1800
+      policies:
+      - type: Percent
+        value: 30
+        periodSeconds: 15
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: "{{ include "helm-template.deploymentMetaNameBase" $serviceName }}"
+  minReplicas: {{ $asMin }}
+  maxReplicas: {{ $asMax }}
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $asMem }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $asCpu }}
+---          
+{{- end }}
+{{- end }}

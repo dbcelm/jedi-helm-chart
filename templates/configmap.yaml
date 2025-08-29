@@ -1,0 +1,22 @@
+{{/*
+ConfigMap template
+- Emits a simple key->file ConfigMap when configmap.enabled resolves true
+- Data is treated as a string and written under the configured filename
+*/}}
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- $mergedConfig := merge (deepCopy $.Values.global) $serviceConfig }}
+{{- if $mergedConfig.configmap.enabled }}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "helm-template.configmapMetaNameBase" $serviceName }}
+  labels:
+    app: '{{ $serviceName }}'
+  {{- include "helm-template.labels" $ | nindent 4 }}
+data:
+  {{ $mergedConfig.configmap.filename }}: |-
+{{ $mergedConfig.configmap.data | indent 4 }}
+---
+{{- end }}
+{{- end }}

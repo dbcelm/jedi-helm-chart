@@ -1,0 +1,43 @@
+{{/*
+Ingress template
+- Emits an Ingress per service when ingress.enabled resolves true
+- Merges annotations and uses backend service port derived from service ports
+*/}}
+{{- range $serviceName, $serviceConfig := .Values.services }}
+{{- $mergedConfig := merge (deepCopy $.Values.global) $serviceConfig }}
+{{- $svc := ($serviceConfig.service | default dict) }}
+{{- $svcPorts := ($svc.ports | default dict) }}
+{{- $svcPort := (default $.Values.global.service.ports.port $svcPorts.port) }}
+{{- $ing := ($serviceConfig.ingress | default dict) }}
+{{- $ingHost := (default $.Values.global.ingress.host $ing.host) }}
+{{- $ingPath := (default $.Values.global.ingress.path $ing.path) }}
+{{- $ingAnnotations := merge (deepCopy $.Values.global.ingress.annotations) ($ing.annotations | default dict) }}
+{{- if (default $.Values.global.ingress.enabled $ing.enabled) }}
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "helm-template.ingressMetaNameBase" $serviceName }}
+  labels:
+    app: '{{ $serviceName }}'
+  {{- include "helm-template.labels" $ | nindent 4 }}
+  {{- with $ingAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: {{ $ingHost }}
+      http:
+        paths:
+          - path: {{ $ingPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: '{{ include "helm-template.serviceMetaNameBase" $serviceName }}'
+                port:
+                  number: {{ $svcPort }}
+---
+{{- end }}
+{{- end }}

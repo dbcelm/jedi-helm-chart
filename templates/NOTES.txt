@@ -1,0 +1,171 @@
+{{- /* Jedi Helm Chart - Post-installation Notes */ -}}
+{{- $services := .Values.services -}}
+{{- $serviceCount := len $services -}}
+{{- $totalResources := 0 -}}
+{{- $deploymentCount := 0 -}}
+{{- $serviceCount := 0 -}}
+{{- $ingressCount := 0 -}}
+{{- $hpaCount := 0 -}}
+{{- $cronjobCount := 0 -}}
+{{- $configmapCount := 0 -}}
+
+{{- /* Count resources by type */ -}}
+{{- range $serviceName, $serviceConfig := $services -}}
+  {{- $totalResources = add $totalResources 1 -}}
+  {{- $deploymentCount = add $deploymentCount 1 -}}
+  
+  {{- $svcEnabled := false -}}
+  {{- if hasKey $serviceConfig "service" -}}
+    {{- if hasKey $serviceConfig.service "enabled" -}}
+      {{- $svcEnabled = $serviceConfig.service.enabled -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if (default $.Values.global.service.enabled $svcEnabled) -}}
+    {{- $totalResources = add $totalResources 1 -}}
+    {{- $serviceCount = add $serviceCount 1 -}}
+  {{- end -}}
+  
+  {{- $ingEnabled := false -}}
+  {{- if hasKey $serviceConfig "ingress" -}}
+    {{- if hasKey $serviceConfig.ingress "enabled" -}}
+      {{- $ingEnabled = $serviceConfig.ingress.enabled -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if (default $.Values.global.ingress.enabled $ingEnabled) -}}
+    {{- $totalResources = add $totalResources 1 -}}
+    {{- $ingressCount = add $ingressCount 1 -}}
+  {{- end -}}
+  
+  {{- $asEnabled := false -}}
+  {{- if hasKey $serviceConfig "autoscaling" -}}
+    {{- if hasKey $serviceConfig.autoscaling "enabled" -}}
+      {{- $asEnabled = $serviceConfig.autoscaling.enabled -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if (default $.Values.global.autoscaling.enabled $asEnabled) -}}
+    {{- $totalResources = add $totalResources 1 -}}
+    {{- $hpaCount = add $hpaCount 1 -}}
+  {{- end -}}
+  
+  {{- $cjEnabled := false -}}
+  {{- if hasKey $serviceConfig "cronjobs" -}}
+    {{- if hasKey $serviceConfig.cronjobs "enabled" -}}
+      {{- $cjEnabled = $serviceConfig.cronjobs.enabled -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if (default $.Values.global.cronjobs.enabled $cjEnabled) -}}
+    {{- $cronJobs := $serviceConfig.cronjobs.jobs | default list -}}
+    {{- $cronCount := len $cronJobs -}}
+    {{- $totalResources = add $totalResources $cronCount -}}
+    {{- $cronjobCount = add $cronjobCount $cronCount -}}
+  {{- end -}}
+  
+  {{- $cmEnabled := false -}}
+  {{- if hasKey $serviceConfig "configmap" -}}
+    {{- if hasKey $serviceConfig.configmap "enabled" -}}
+      {{- $cmEnabled = $serviceConfig.configmap.enabled -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if (default $.Values.global.configmap.enabled $cmEnabled) -}}
+    {{- $totalResources = add $totalResources 1 -}}
+    {{- $configmapCount = add $configmapCount 1 -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* Jedi ASCII Art Header */ -}}
+╔══════════════════════════════════════════════════════════════╗
+║                    ╭─────────────────╮                       ║
+║                    │   JEDI HELM     │                       ║
+║                    │   CHART         │                       ║
+║                    ╰─────────────────╯                       ║
+║                                                              ║
+║                 "May the Helm be with you"                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+🎯 DEPLOYMENT SUMMARY
+══════════════════════════════════════════════════════════════
+
+📊 Microservices Deployed: {{ $serviceCount }}
+🔧 Total Kubernetes Resources: {{ $totalResources }}
+
+📋 RESOURCE BREAKDOWN
+══════════════════════════════════════════════════════════════
+{{- $resourceList := "\n" -}}
+{{- if gt $deploymentCount 0 -}}
+{{- $resourceList = printf "%s🔹 Deployment:    %d\n" $resourceList $deploymentCount -}}
+{{- end -}}
+{{- if gt $serviceCount 0 -}}
+{{- $resourceList = printf "%s🔹 Service:       %d\n" $resourceList $serviceCount -}}
+{{- end -}}
+{{- if gt $ingressCount 0 -}}
+{{- $resourceList = printf "%s🔹 Ingress:       %d\n" $resourceList $ingressCount -}}
+{{- end -}}
+{{- if gt $hpaCount 0 -}}
+{{- $resourceList = printf "%s🔹 HPA:           %d\n" $resourceList $hpaCount -}}
+{{- end -}}
+{{- if gt $cronjobCount 0 -}}
+{{- $resourceList = printf "%s🔹 CronJob:       %d\n" $resourceList $cronjobCount -}}
+{{- end -}}
+{{- if gt $configmapCount 0 -}}
+{{- $resourceList = printf "%s🔹 ConfigMap:     %d" $resourceList $configmapCount -}}
+{{- end -}}
+{{ $resourceList }}
+
+🚀 SERVICES OVERVIEW
+══════════════════════════════════════════════════════════════
+
+{{- $serviceList := "\n" -}}
+{{- range $serviceName, $serviceConfig := $services -}}
+{{- $svc := ($serviceConfig.service | default dict) -}}
+{{- $ing := ($serviceConfig.ingress | default dict) -}}
+{{- $as := ($serviceConfig.autoscaling | default dict) -}}
+{{- $cm := ($serviceConfig.configmap | default dict) -}}
+{{- $cj := ($serviceConfig.cronjobs | default dict) -}}
+{{- $svcPorts := ($svc.ports | default dict) -}}
+{{- $svcPort := (default $.Values.global.service.ports.port $svcPorts.port) -}}
+{{- $ingHost := (default $.Values.global.ingress.host $ing.host) -}}
+{{- $ingPath := (default $.Values.global.ingress.path $ing.path) -}}
+
+{{- $serviceInfo := printf "🔸 %s\n   ├─ Group: %s\n   ├─ Service Port: %v" ($serviceName | upper) ($serviceConfig.group | default "default") ($svcPort | default "N/A") -}}
+
+{{- if (default $.Values.global.ingress.enabled ($ing.enabled | default false)) -}}
+{{- $serviceInfo = printf "%s\n   ├─ Ingress: %s%s" $serviceInfo $ingHost $ingPath -}}
+{{- else -}}
+{{- $serviceInfo = printf "%s\n   ├─ Ingress: Disabled" $serviceInfo -}}
+{{- end -}}
+
+{{- if (default $.Values.global.autoscaling.enabled ($as.enabled | default false)) -}}
+{{- $serviceInfo = printf "%s\n   ├─ Autoscaling: Enabled" $serviceInfo -}}
+{{- end -}}
+
+{{- if (default $.Values.global.configmap.enabled ($cm.enabled | default false)) -}}
+{{- $serviceInfo = printf "%s\n   ├─ ConfigMap: Enabled" $serviceInfo -}}
+{{- end -}}
+
+{{- if (default $.Values.global.cronjobs.enabled ($cj.enabled | default false)) -}}
+{{- $serviceInfo = printf "%s\n   ├─ CronJobs: %d" $serviceInfo (len ($cj.jobs | default list)) -}}
+{{- end -}}
+
+{{- $serviceList = printf "%s%s\n\n" $serviceList $serviceInfo -}}
+{{- end -}}
+{{ $serviceList }}
+
+🎯 NEXT STEPS
+══════════════════════════════════════════════════════════════
+
+1. Verify all services are running:
+   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Check service endpoints:
+   kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+3. Test ingress (if enabled):
+   kubectl get ingress -l app.kubernetes.io/instance={{ .Release.Name }}
+
+4. Monitor autoscaling (if enabled):
+   kubectl get hpa -l app.kubernetes.io/instance={{ .Release.Name }}
+
+5. View cronjob status (if enabled):
+   kubectl get cronjob -l app.kubernetes.io/instance={{ .Release.Name }}
+
+✨ "The Force is strong with this deployment" ✨
